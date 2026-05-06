@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 var factory = new ConnectionFactory() { HostName = "localhost" };
 
@@ -13,12 +14,19 @@ await channel.QueueDeclareAsync(queue: "order_queue",
                                 autoDelete: false, 
                                 arguments: null);
 
-string message = "Pedido #123: Smartphone Apple M3";
-var body = Encoding.UTF8.GetBytes(message);
+var consumer = new AsyncEventingBasicConsumer(channel);
 
-// 4. Publicação usando o novo padrão
-await channel.BasicPublishAsync(exchange: string.Empty, 
-                                routingKey: "order_queue", 
-                                body: body);
+consumer.ReceivedAsync += async (model, ea) =>
+{
+    var body = ea.Body.ToArray();
+    var message = Encoding.UTF8.GetString(body);
+    Console.WriteLine($" [v] Pedido Recebido: {message}");
+    await Task.CompletedTask;
+};
 
-Console.WriteLine($" [x] Enviado: {message}");
+await channel.BasicConsumeAsync(queue: "order_queue", 
+                                autoAck: true, 
+                                consumer: consumer);
+
+Console.WriteLine(" [*] Aguardando mensagens. Pressione Enter para sair.");
+Console.ReadLine();
